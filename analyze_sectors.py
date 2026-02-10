@@ -297,7 +297,8 @@ def generate_narrative_report(results, index_results, start_dt, end_dt):
         brakes = stats[stats['Role'].str.contains('BRAKE')]
         
         report.append(f"## {sec_name} ({ticker})")
-        report.append(f"**シナリオ ({res['grade']})**: {res['outlook']}")
+        report.append(f"**判定**: {res['grade']}")
+        report.append(f"**シナリオ**: {res['outlook']}")
         report.append(f"**Price**: ${res['start_p']:.2f} -> ${res['end_p']:.2f} ({res['return']:+.2f}%)")
         report.append(f"**直近**: {res['last_desc']}")
         
