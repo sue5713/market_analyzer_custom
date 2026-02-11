@@ -46,28 +46,37 @@ def fetch_data():
         print(f"Error fetching data: {e}")
         return None
 
-def filter_data_by_date(df, start_date_str=None, end_date_str=None):
+def filter_data_by_date(df, start_dt=None, end_dt=None):
     if df is None or df.empty: return df
     filtered = df.copy()
-    is_tz_aware = filtered.index.tzinfo is not None
-    timezone = pytz.timezone("America/New_York")
     
-    if start_date_str:
-        try:
-            start_dt = pd.to_datetime(start_date_str)
-            if is_tz_aware and start_dt.tzinfo is None:
-                start_dt = timezone.localize(start_dt)
-            filtered = filtered[filtered.index >= start_dt]
-        except: pass
+    # Ensure index is timezone-aware (yfinance usually returns NY time, or UTC)
+    # If not, assume NY
+    if filtered.index.tzinfo is None:
+        filtered.index = filtered.index.tz_localize("America/New_York")
+    
+    # Convert dataframe index to JST for easier comparison validation by user? 
+    # Or convert Input (JST) to DataFrame's TZ (likely America/New_York)
+    
+    # Best practice: Convert everything to UTC for comparison
+    df_utc = filtered.tz_convert("UTC")
+    
+    if start_dt:
+        # Ensure start_dt is aware
+        if start_dt.tzinfo is None:
+             # If passed as naive, assume JST as per main() logic or handle gracefully
+             start_dt = pytz.timezone('Asia/Tokyo').localize(start_dt)
+        start_utc = start_dt.astimezone(pytz.UTC)
+        df_utc = df_utc[df_utc.index >= start_utc]
 
-    if end_date_str:
-        try:
-            end_dt = pd.to_datetime(end_date_str)
-            if is_tz_aware and end_dt.tzinfo is None:
-                end_dt = timezone.localize(end_dt)
-            filtered = filtered[filtered.index <= end_dt]
-        except: pass
-    return filtered
+    if end_dt:
+        if end_dt.tzinfo is None:
+             end_dt = pytz.timezone('Asia/Tokyo').localize(end_dt)
+        end_utc = end_dt.astimezone(pytz.UTC)
+        df_utc = df_utc[df_utc.index <= end_utc]
+    
+    # Return in original TZ (convert back from UTC to NY usually)
+    return df_utc.tz_convert("America/New_York")
 
 def analyze_last_day_shape(df):
     if df.empty: return 0, "N/A", 0, 0, 0, 0, ""
@@ -418,42 +427,76 @@ def generate_narrative_report(results, index_results, start_dt, end_dt):
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument('--start', type=str)
-    parser.add_argument('--end', type=str)
+    parser.add_argument('--start', type=str, help='Start datetime (YYYY-MM-DD HH:MM) in JST')
+    parser.add_argument('--end', type=str, help='End datetime (YYYY-MM-DD HH:MM) in JST')
     parser.add_argument('--days', type=int, default=14)
     args = parser.parse_args()
     
     data = fetch_data()
     if data is None: return
 
-    # Use JST for default dates to align with user time (and correct US close relative to JST morning)
     jst = pytz.timezone('Asia/Tokyo')
+    
+    # Default end is Now (JST)
     end_dt = datetime.now(jst)
     
-    if args.end: end_dt = pd.to_datetime(args.end)
+    # Logic for customized time range
+    if args.end:
+        # User provides 'YYYY-MM-DD HH:MM' in JST
+        try:
+            # Parse argument as specific time
+            local_dt = datetime.strptime(args.end, "%Y-%m-%d %H:%M")
+            end_dt = jst.localize(local_dt)
+        except ValueError:
+            # Fallback for simple date
+            end_dt = pd.to_datetime(args.end).tz_localize(jst)
+
+    # Default start is end - days
     start_dt = end_dt - timedelta(days=args.days)
-    if args.start: start_dt = pd.to_datetime(args.start)
+    
+    if args.start:
+        try:
+            local_dt = datetime.strptime(args.start, "%Y-%m-%d %H:%M")
+            start_dt = jst.localize(local_dt)
+        except ValueError:
+            start_dt = pd.to_datetime(args.start).tz_localize(jst)
         
-    start_str = start_dt.strftime("%Y-%m-%d")
-    end_str = end_dt.strftime("%Y-%m-%d")
+    start_str = start_dt.strftime("%Y-%m-%d %H:%M")
+    end_str = end_dt.strftime("%Y-%m-%d %H:%M")
     
-    print(f"Analyzing {start_str} to {end_str}...")
+    # Convert JST datetimes to string for filter function (which checks against index)
+    # The filter_data_by_date expects strings that pd.to_datetime can handle, or we can pass naive UTC?
+    # Actually, yfinance index is usually America/New_York localized or UTC.
+    # We should convert our JST range to the dataframe's timezone for accurate filtering.
     
-    index_results = []
-    for idx in INDICES:
-        res = analyze_ticker(idx, data, start_str, end_str)
-        if res: index_results.append(res)
+    print(f"Analyzing {start_str} JST to {end_str} JST...")
 
-    results = {}
-    for sector, holdings in SECTORS.items():
-        res = analyze_sector(sector, holdings, data, start_str, end_str)
-        if res: results[sector] = res
+    # We need to pass the actual datetime objects to filter or convert to string properly
+    # Let's adjust filter_data_by_date to handle datetime objects directly to avoid confusion
+    
+    # Helper to run analysis with correct valid objects
+    def run_analysis_for_range(s_dt, e_dt):
+        index_res = []
+        for idx in INDICES:
+            res = analyze_ticker(idx, data, s_dt, e_dt)
+            if res: index_res.append(res)
+            
+        sec_results = {}
+        for sector, holdings in SECTORS.items():
+            res = analyze_sector(sector, holdings, data, s_dt, e_dt)
+            if res: sec_results[sector] = res
+            
+        if sec_results:
+            report_text = generate_narrative_report(sec_results, index_res, s_dt.strftime("%Y-%m-%d %H:%M"), e_dt.strftime("%Y-%m-%d %H:%M"))
+            return report_text
+        return "No data found for this range."
 
-    if results:
-        report = generate_narrative_report(results, index_results, start_str, end_str)
-        with open("analysis_output.txt", "w", encoding='utf-8') as f:
-            f.write(report)
-        print("Report Generated.")
+    report = run_analysis_for_range(start_dt, end_dt)
+    
+    # Filename based on range for clarity if needed, or just standard
+    with open("analysis_output.txt", "w", encoding='utf-8') as f:
+        f.write(report)
+    print("Report Generated.")
 
 if __name__ == "__main__":
     main()
