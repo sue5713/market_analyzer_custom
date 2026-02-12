@@ -90,7 +90,7 @@ def main():
         
     # Send the full file at the end for easy copying
     print("Sending full report file...")
-    send_discord_message(content="**【Full Report File】** (Download for easy copying)", file_path=output_file)
+    send_discord_message(content="📊 Full Report File", file_path=output_file)
 
 if __name__ == "__main__":
     main()
