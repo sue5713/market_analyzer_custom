@@ -39,8 +39,7 @@ jobs:
           python analyze_sectors.py --days 14
         fi
       
-    - name: Send to LINE
+    - name: Send to Discord
       env:
-        LINE_CHANNEL_ACCESS_TOKEN: ${{ secrets.LINE_CHANNEL_ACCESS_TOKEN }}
-        LINE_USER_ID: ${{ secrets.LINE_USER_ID }}
-      run: python notify_line.py
+        DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+      run: python notify_discord.py
