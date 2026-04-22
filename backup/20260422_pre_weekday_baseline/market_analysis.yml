@@ -2,7 +2,7 @@ name: Daily Market Analysis
 
 on:
   schedule:
-    # 21:00 UTC = 06:00 JST (Tue-Sat) -> analyzes US close of Mon-Fri
+    # 21:00 UTC = 06:00 JST (Mon-Fri)
     - cron: '0 21 * * 1-5'
   workflow_dispatch:
     inputs:
@@ -16,7 +16,7 @@ on:
 jobs:
   analyze_and_notify:
     runs-on: ubuntu-latest
-
+    
     steps:
     - name: Checkout code
       uses: actions/checkout@v3
@@ -32,15 +32,13 @@ jobs:
         pip install -r requirements.txt
 
     - name: Run Market Analysis
-      env:
-        MARKET_TYPE: US
       run: |
         if [ -n "${{ inputs.start_date }}" ] && [ -n "${{ inputs.end_date }}" ]; then
-          python run_with_baseline.py --start "${{ inputs.start_date }}" --end "${{ inputs.end_date }}"
+          python analyze_sectors.py --start "${{ inputs.start_date }}" --end "${{ inputs.end_date }}"
         else
-          python run_with_baseline.py
+          python analyze_sectors.py --days 14
         fi
-
+      
     - name: Send to Discord
       env:
         DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
