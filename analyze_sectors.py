@@ -524,13 +524,6 @@ def generate_narrative_report(results, index_results, macro_results, start_dt_st
         report.append("\n" + "-"*20 + "\n")
 
     # 3. Rankings Section
-    report.append("### ④ リカバリー・ファクター (RF) ランキング") # Fixed numbering to ④? User snippet had ③ but usually Macro is after?
-    # Wait, the user's snippet text had:
-    # ### ③ リカバリー・ファクター (RF) ランキング
-    # ...
-    # ### ④ 注目マクロ指標 (Macro)
-    # So I should keep it as ③
-    
     report.append("### ③ リカバリー・ファクター (RF) ランキング")
     report.append("「リスクあたりのリターン効率」を比較します。数値が高いほど優秀です。\n")
     
@@ -581,14 +574,6 @@ def generate_narrative_report(results, index_results, macro_results, start_dt_st
         report.append(f"**{m_name} ({m_ticker})**: {res['Return']:+.2f}%")
         report.append(f"  Price: {res['Start']:.2f} -> {res['End']:.2f} [{res['DateRange']}]")
         report.append(f"  直近: {res['LastDesc']} ({res['LastMove']:+.2f}%) [{res['LastDate']}]")
-        # Added RF/MDD based on user sample output if needed, but user didn't explicitly ask for it in the text sample
-        # Wait, the user text:
-        # ### ④ 注目マクロ指標 (Macro)
-        # **ゴールド (GLD)**: +2.00%
-        # ...
-        # The user's Python Code had:
-        # report.append(f"  RF: {res['RF']:.2f} | MDD: {res['MDD']:.1f}%")
-        # So I will include it.
         report.append(f"  RF: {res['RF']:.2f} | MDD: {res['MDD']:.1f}%")
         report.append("")
     
